@@ -1,3 +1,8 @@
+/*
+  The first .attrs() call creates an invisible path at the correct location
+  The second call increases the wide and sets the class
+*/
+
 
 d3.select("g")
   .append("path")
