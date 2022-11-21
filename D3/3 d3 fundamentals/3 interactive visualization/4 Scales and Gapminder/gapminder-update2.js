@@ -19,7 +19,7 @@ function initialize(data, scales) {
 
 function update_continents(ev, data, scales) {
   continents = $(ev.target).val()
-  let subset = data.filter(d => continents.indexOf(d.continent) != -1 & d.year == year);
+  let subset = data.filter(d => continents.indexOf(d.continent) != -1 & d.year == year); // build an array of just the current country-year  combinations by filtering
 
   let selection = d3.select("svg").selectAll("circle")
     .data(subset, d => d.country)
@@ -35,7 +35,7 @@ function update_continents(ev, data, scales) {
 
 function update_year(ev, data, scales) {
   year = +ev.target.value
-  let subset = data.filter(d => continents.indexOf(d.continent) != -1 & d.year == year);
+  let subset = data.filter(d => continents.indexOf(d.continent) != -1 & d.year == year); // 
   d3.select("svg").selectAll("circle")
     .data(subset, d => d.country)
     .transition()

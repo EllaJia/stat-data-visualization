@@ -18,6 +18,7 @@ console.log(name_scale("madison"))
 
 
 
+
 function visualize(data) {
   scales = make_scales(data)
   data = data.filter(d => d.year == 1965)

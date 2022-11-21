@@ -23,14 +23,18 @@ function initialize(data, year, scales) {
     })
 }
 
+/**
+ * indexOf()
+ *    return -1 if an element is not contained in an array
+ */
 function update_continents(ev, data, scales) {
   continents = $(ev.target).val()
-  let subset = data.filter(d => continents.indexOf(d.continent) != -1);
+  let subset = data.filter(d => continents.indexOf(d.continent) != -1); // filter the full data down to those countries whose continent is contained the current array of continents
 
   let selection = d3.select("svg").selectAll("circle")
     .data(subset, d => d.country)
   selection.enter()
-    .append("circle")
+    .append("circle") 
     .attrs({
       cx: d => scales.x(d.lpop),
       cy: d => scales.y(d.life_expectancy),
