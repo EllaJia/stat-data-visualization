@@ -1,3 +1,10 @@
+/**
+ * Voronoi mouseover:
+ *    a fancy way of saying that we should register a mouseover whenever the mouse moves near to, but not exactly on, a potential object of interest
+ * 
+ * The main idea is to create a "d3.Delaunay" object which can be used to compute the nearest neighboring datapoint of a mouse
+ */
+
 
 function visualize(data) {
   data = data.filter(d => d.IMDB_Rating > 0 & d.Rotten_Tomatoes_Rating > 0);
@@ -17,6 +24,7 @@ function initialize(data, scales) {
       fill: d => scales.fill(d.Genre_Group)
     })
 
+  // d3.Delanay.from(data, x, y)
   let delaunay = d3.Delaunay.from(data, d => scales.x(d.IMDB_Rating), d => scales.y(d.Rotten_Tomatoes_Rating)),
     voronoi = delaunay.voronoi([0, 0, 900, 500]);
 
@@ -26,17 +34,17 @@ function initialize(data, scales) {
     .append("path")
     .attr("d", voronoi.render())
 
-  d3.select("svg").on("mousemove", (ev) => mouseover(ev, data, delaunay, scales))
+  d3.select("svg").on("mousemove", (ev) => mouseover(ev, data, delaunay, scales)) // whenever the mouse moves on the background SVG and recalculate the nearest neighbor
   d3.select("#tooltip").append("text")
   annotations(scales)
 }
 
 function mouseover(ev, data, delaunay, scales) {
-  let ix = delaunay.find(ev.pageX, ev.pageY);
-  d3.select("#tooltip")
+  let ix = delaunay.find(ev.pageX, ev.pageY); // recalculate the nearest neighbor
+  d3.select("#tooltip") // first move tooltip to current datapoint's location
     .attr("transform", `translate(${scales.x(data[ix].IMDB_Rating)}, ${scales.y(data[ix].Rotten_Tomatoes_Rating)})`)
     .select("text")
-    .text(data[ix].Title);
+    .text(data[ix].Title); // fill in the current movie's name
 
   d3.select("#circles")
     .selectAll("circle")

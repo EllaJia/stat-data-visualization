@@ -19,6 +19,7 @@ function initialize(data, stats, scales) {
       fill: d => scales.fill(d.Genre_Group)
     })
 
+  // create rectangles representing the legend elements
   d3.select("#bars")
     .selectAll("rect")
     .data(stats).enter()
@@ -98,6 +99,7 @@ function annotations(scales) {
     });
 }
 
+// update make_scales function to include x and y coordinate scales associated with the bar chart
 function make_scales(data, stats) {
   return {
     x1: d3.scaleLinear()
@@ -124,6 +126,7 @@ let width = 700,
               "Adventure", "Thriller/Suspense", "Horror"],
   margins = {left: 60, right: 60, top: 60, bottom: 60, pad: 60, text_offset: 5};
 
+  // create a new dataset, associated with the genre totals
   Promise.all([
       d3.csv("movies.csv", d3.autoType),
       d3.csv("stats.csv", d3.autoType),
