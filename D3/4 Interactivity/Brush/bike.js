@@ -56,12 +56,14 @@ function brush_update(ev, data, scales) {
 }
 
 function filter_dates(ev, data, scales) {
+  // relate pixel with original data coordinates
   let [[x0, y0], [x1, y1]] = ev.selection;
   x0 = scales.x.invert(x0);
   y0 = scales.y.invert(y0);
   x1 = scales.x.invert(x1);
   y1 = scales.y.invert(y1);
 
+  // check which time series belong within the scatterplot range
   let dates = [];
   for (let i = 0; i < data.scatter.length; i++) {
     let di = data.scatter[i]

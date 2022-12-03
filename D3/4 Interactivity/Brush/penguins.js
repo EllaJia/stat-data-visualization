@@ -39,10 +39,15 @@ function initialize(data, scales) {
     d3.select(`#brush${b}`).call(brushes[b])
   }
 
+  /**
+   *  d3.selection.node()
+   *    return the first non-null element in the selection
+   * 
+   */
   function brushed(ev, data, b) {
     // clear the other brush
-    let opposite = d3.select(`#brush${(b + 1) % 2}`)
-    let has_brush = d3.brushSelection(opposite.node())
+    let opposite = d3.select(`#brush${(b + 1) % 2}`) // 0 -> (0 + 1 % 2) -> 1;   1 -> (1 + 1) % 2 -> 0 
+    let has_brush = d3.brushSelection(opposite.node()) 
     if (!(has_brush === null)) {
         opposite.call(brushes[(b + 1) % 2].move, null)
     }
