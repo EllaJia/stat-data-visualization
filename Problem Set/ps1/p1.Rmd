@@ -1,0 +1,429 @@
+---
+title: "Project Set 1"
+author: "Suhui Liu, Haoyang Yan, Haishuo Chen, Jiaying Jia "
+date: "9/26/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(shiny)
+theme_set(theme_bw())
+```
+
+# Coding
+
+## London Olympics
+
+
+
+```{r message=FALSE, warning=FALSE}
+library(bslib)
+library(forcats)
+olympics <- read_csv("https://uwmadison.box.com/shared/static/rzw8h2x6dp5693gdbpgxaf2koqijo12l.csv")
+```
+
+```{r}
+sports <- unique(olympics$Sport)
+avg_data <- aggregate(olympics$Age, FUN = mean, by = list(Sport = olympics$Sport)) %>%
+  mutate(Sport = fct_reorder(Sport, x))
+
+ui <- fluidPage(
+  theme = bs_theme(bootswatch = "cerulean"),
+  titlePanel("Sports Plot"),
+  textOutput("intro1"),
+  selectInput("sports", "Sports", sports, multiple = TRUE),
+  plotOutput("age", height = 400),
+  textOutput("intro2"),
+  plotOutput("avg_age", height = 600),
+  textOutput("intro3"),
+  plotOutput("question")
+)
+server <- function(input, output){
+  sports <- reactive({
+    paste(input$sports, collapse = ", ")
+  })
+  sports_group <- reactive({
+    ifelse(olympics$Sport %in% input$sports, sports(), "others")
+  })
+  avg_ <- reactive({
+    avg_data %>% 
+      mutate(group = ifelse(Sport %in% input$sports, "select", "others")) %>%
+      mutate(size = ifelse(group == "select", 5, 1))
+  })
+  
+  output$intro1 <- renderText({
+    "Select one or more sports to see their portions in each age group."
+  })
+  output$age <- renderPlot({
+    ggplot() +
+      geom_histogram(aes(x = olympics$Age, fill = sports_group()))
+  })
+  output$intro2 <- renderText({
+    "The average ages withing each sport below are sorted"
+  })
+  output$avg_age <- renderPlot({
+    ggplot(data = avg_()) +
+      geom_point(aes(y = x, x = Sport, color = group, size = size)) + 
+      xlab("sports") + 
+      ylab("average age") + 
+      theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5)) +
+      coord_flip()
+  })
+  
+  output$intro3 <- renderText({
+    "Question: What is the sample distribution of height across gender? Answer: As displayed. "
+  })
+  output$question <- renderPlot({
+    ggplot(data = olympics) +
+      geom_histogram(aes(x = `Height, cm`, fill = Sex))
+  })
+
+}
+
+shinyApp(ui, server)
+```
+
+
+## Pokemon
+
+```{r message=FALSE, warning=FALSE}
+pokemon <- read_csv("https://uwmadison.box.com/shared/static/hf5cmx3ew3ch0v6t0c2x56838er1lt2c.csv")
+```
+
+### a
+
+```{r}
+pokemon <- pokemon %>% mutate(att_def = Attack/Defense)
+```
+
+### b
+
+```{r}
+temp <- pokemon %>% group_by(type_1) %>% summarize(median = median(att_def)) %>% arrange(desc(median))
+temp
+```
+### c
+
+```{r}
+pokemon %>% mutate(across(type_1, factor, levels=temp$type_1)) %>% 
+  arrange(desc(att_def)) %>%
+  ggplot() +
+  geom_point(aes(Attack, Defense)) +
+  facet_wrap(vars(type_1))
+```
+
+### d
+
+**Propose, but do not implement, a visualization of this dataset that makes use of dynamic queries. What questions would the visualization answer?**
+
+What is the information of a specific point on the graph?
+What are Fairy pokemons names when they have a range of attack value, for example, from 50 to 100?
+
+**What would be the structure of interaction, and how would the display update when the user provides a cue?**
+
+It could be a structure of using brushes in the Rshiny app. On the backend, we could use `brushedPoints`, `reactiveVal` to trace the cues and reacte to the front end data and graph.
+The graph can only highlight the user selected points, and show an additional data table providing the selected data information.
+
+
+## Soccer Code Review
+
+We have 2 suggestions for it:
+
+1. The original graph is crowded with too many points in the graph. So we reduce the data displayed proportion to 0.1.
+2. It is hard to say which team wins most. So we order the graph by the average `wins`.
+
+```{r}
+win_props <- read_csv("https://raw.githubusercontent.com/krisrs1128/stat479_s22/main/exercises/data/understat_per_game.csv") %>%
+  group_by(team, year) %>% summarise(n_games = n(), wins = sum(wins) / n_games)
+
+
+best_teams <- win_props %>%
+  ungroup() %>%
+  slice_max(wins, prop = 0.1) %>%
+  pull(team)
+
+t <- win_props %>%
+  filter(team %in% best_teams)
+lvls <- names(sort(by(t$wins, t$team, mean)))
+t$team <- factor(t$team, levels = lvls)
+  
+ggplot(t) +
+geom_point(aes(year, team, size = n_games, alpha = wins))
+```
+Another option is that we reformat the graph, changing x axis as `wins`. We use color to represent the number of games, 
+and we use facet the `year`.
+
+```{r}
+
+ggplot(t) +
+geom_point(aes(wins, team , col = n_games)) + 
+  facet_wrap(~year)
+```
+
+
+## Visual Redesign
+
+**In this exercise, you will find a visualization you have made in the past and redesign it using the skills you have learned in this course.**
+
+### a. Identify one of your past visualizations for which you still have data. Include a screenshot of this past visualization.
+
+
+I was given data about a chained store and was asked to compare the data of different store.
+"order" is data of sales infos for all branches.
+"person" and "customer_label" are the data of different customers.
+
+```{r}
+# Read data (Data are in Chinese Version)
+order <- read.csv('order(utf8).csv',encoding='UTF-8')
+customer_label <- read.csv('customer_label(utf8).csv',encoding='UTF-8')
+
+# Data preprocessing
+order$order_num <- as.factor(order$order_num)
+order$item_num <- as.factor(order$item_num)
+
+```
+
+
+I made 4 graphs in total, comparing their sales amount, one time purchase amount, gender distribution and generation distribution.
+
+
+```{r}
+# Comparison of Sales Amount
+salescompare <- order %>% group_by(branches) %>% summarise(total_purchase_value = sum(purchase_value * purchase_num)) %>% ungroup()
+barplot(salescompare$total_purchase_value, names.arg = salescompare$branches, col = 'skyblue', ylim = c(0, max(salescompare$total_purchase_value) + 100), main = 'Sales Amount Comparison', ylab = 'Sales Amount')
+```
+
+```{r}
+# Comparison of One time purchase amount
+ggplot(order) + 
+  geom_point(aes(x = purchase_num, y = purchase_value, color = branches)) + 
+  scale_x_log10() +
+  labs(x = 'number of purchases', y = 'one time sales amount', color = 'branches', title = "One time purchase Amount Comparison")
+```
+
+
+```{r}
+# Gender Comparison
+ordercus <- left_join(order, customer_label[, c('PID', 'gender', 'generation')], by = 'PID')
+ordercus_group <- group_by(ordercus, branches, gender)
+d <- summarise(ordercus_group, count = n())
+
+p <- ggplot(data = d, mapping = aes(
+  x = `branches`, fill = `gender`, y = count
+))
+p + geom_col() +
+  labs(x = 'branches', , color = 'gender', title = "Gender Comparison")
+
+```
+
+
+```{r}
+# Generation Comparison
+ordercus <- left_join(order, customer_label[, c('PID', 'gender', 'generation')], by = 'PID')
+ordercus_group <- group_by(ordercus, branches, generation)
+d <- summarise(ordercus_group, count = n())
+
+p <- ggplot(data = d, mapping = aes(
+  x = `branches`, fill = `generation`, y = count
+))
+p + geom_col() + 
+  labs(x = 'branches', color = 'generation', title = "Generation Comparison")
+```
+
+### b. 
+
+**Comment on the main takeaways from the visualization and the graphical relationships that lead to that conclusion. Is this takeaway consistent with the intended message? Are there important comparisons that you would like to highlight, but which are harder to make in the current design?**
+
+I got the result that B is the best among all the stores because it has the highest sales amount and more visits than other two stores. This takeaway is consistent with the intended message but the visualization could be improved. 
+
+We don't know about which items are popular among different categories. Also, it's hard to compare different generations and we can only know how many visits each generation made, we can't tell the preference of each generation.
+
+
+
+### c 
+
+**Comment on the legibility of the original visualization. Are there aspects of the visualization that are cluttered or difficult to read?**
+
+
+It's hard to tell the difference of the 3 stores in graph "Comparison of One time sales amount" since most of the dots are overlapped. Also, with the help of ggplot2 pacakge, one graph could cover more information. These are the two aspects I want to improve in this redesign work.
+
+
+
+### d
+
+**Propose and implement an alternative design. What visual tasks do you prioritize in the new design? Did you have to make any trade-offs? Did you make any changes specifically to improve legibility.**
+
+
+For this visual design, I mainly focus on compare different categories among each store. And also, I want to extract more information about customer generations.
+
+
+```{r}
+# Comparison of Sales Category
+p <- ggplot(data = order, mapping = aes(x = category, fill = branches)) + 
+  geom_bar() + 
+  labs(y = 'Number of sales', fill = 'branches', title = "Sales Category Comparison") +
+  theme(plot.title=element_text(size = 17, hjust=0.5), axis.text.x = element_text(size = 8, angle = 45))
+p
+```
+
+
+```{r}
+# 
+ordercus <- left_join(order, customer_label[, c('PID', 'gender', 'generation', 'ave_purchase_value')], by = 'PID')
+ordercus %>%
+  ggplot(mapping = aes(x = ave_purchase_value)) + 
+  geom_histogram() + 
+  geom_freqpoly(mapping = aes(color = generation)) + 
+  labs(x = 'expenses on a single purchase', color = 'generation', title = " Comparison") + 
+  facet_wrap(~ branches)
+```
+
+
+
+
+# Discussion
+
+## Antibiotics Comparison
+
+1. For approach 1:
+
+- Well-suited: It can display the `svalue` change of various species across different sampling groups. 
+
+- Poor-suited: It's hard to do comparisons on the `species` or `antibiotic` within the same sampling group directly.
+
+2. For approach 2:
+
+- Well-suited: It's easy to compare the differences of different sampling groups on the same time slot.
+
+- Poor-suited: It's hard to tell the accurate value, especially when colors are similar.
+
+3. For approach 3:
+
+- Well-suited: It's easy to compare the difference of `svalue` within the same sampling group.
+
+- Poor-suited: It's hard to comparisons across the sampling group.
+
+### d
+
+Visualization for approach 3:
+
+```{r}
+antibiotic <- read_csv("https://uwmadison.box.com/shared/static/5jmd9pku62291ek20lioevsw1c588ahx.csv")
+
+antibiotic %>%
+  ggplot() + 
+  geom_line(aes(time, svalue, col = species)) +
+  facet_wrap(ind~., dir = "v", strip.position = "right")
+```
+
+
+## Name App Bugs
+
+Answers are embedded in comments for question a and b. 
+
+### a
+
+1.  Expression cannot be executed outside reactive/render functions. Also, input value shouldn't be modified outside `observeEvent`. Here, the best choice is to assign a new variable to store the reactive expression. 
+
+```{r eval=FALSE}
+  input$name <- paste0("Welcome to shiny, ", input$name, "!")
+```
+
+2.  The id doesn't consistent with ui. Double check the id every time we use.
+
+```{r eval=FALSE}
+  output$printed_names <- renderText({ input$name })
+```
+
+After modification:
+
+```{r eval=FALSE}
+  name <- reactive(paste0("Welcome to shiny, ", input$name, "!"))
+  output$printed_name <- renderText({ name() })
+```
+
+
+### b
+
+ID doesn't consistent with ui.
+
+```{r eval=FALSE}
+  output$printed_names <- renderText({
+```
+After modification:
+
+```{r eval=FALSE}
+  output$printed_name <- renderText({
+```
+
+
+### c
+
+Defined output type in server doesn't consistent with requested output type in ui and actual output value.
+
+```{r eval=FALSE}
+output$printed_name <- renderDataTable({
+  paste0("Welcome to shiny, ", input$name, "!")
+})
+```
+
+
+After modification:
+
+```{r eval=FALSE}
+output$printed_name <- renderText({
+  paste0("Welcome to shiny, ", input$name, "!")
+})
+```
+
+
+### d
+
+Comma needed in ui. 
+
+```{r eval=FALSE}
+ui <- fluidPage(
+  titlePanel("Hello!")
+  textInput("name", "Enter your name")
+  textOutput("printed_name")
+)
+```
+
+After modification:
+
+```{r eval=FALSE}
+ui <- fluidPage(
+  titlePanel("Hello!"),
+  textInput("name", "Enter your name"),
+  textOutput("printed_name")
+)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
