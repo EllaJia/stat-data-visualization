@@ -1,0 +1,268 @@
+---
+title: "ps4-wrap-up"
+author: "Jiaying Jia"
+date: "2022-12-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Coding
+
+## [Political Book Recommendations] 
+#### In this problem, we’ll study a network dataset of Amazon bestselling US Politics books. Books are linked by an edge if they appeared together in the recommendations (“customers who bought this book also bought these other books”).
+
+```{r}
+library(tidygraph)
+library(tidyverse)
+library(ggraph)
+theme_set(theme_bw())
+```
+
+
+
+#### a. The code below reads in the edges and nodes associated with the network. The edges dataset only contains IDs of co-recommended books, while the nodes data includes attributes associated with each book. Build a tbl_graph object to store the graph.
+
+```{r}
+edges <- read_csv("https://uwmadison.box.com/shared/static/54i59bfc5jhymnn3hsw8fyolujesalut.csv", col_types = "cci")
+nodes <- read_csv("https://uwmadison.box.com/shared/static/u2x392i79jycubo5rhzryxjsvd1jjrdy.csv", col_types = "ccc")
+
+G <- tbl_graph(nodes, edges, directed = FALSE)
+G
+```
+
+
+#### b. Use the result from part (a) to visualize the network as a node-link diagram. Include the book’s title in the node label, and shade in the node according to political ideology.
+
+
+```{r}
+ggraph(G, "kk") +
+     geom_edge_link(colour = "#d3d3d3", width = 0.5, alpha = 0.6) +
+     geom_node_text(aes(label = Label, size = political_ideology, col = political_ideology)) +
+     scale_color_manual(values = c("#BF4545", "#225C73", "#FFD100")) +
+     scale_size_discrete(range = c(2, 2, 2)) +
+     theme_void() +
+     theme(legend.position = "right")
+```
+
+
+
+#### c. Create the analogous adjacency matrix visualization. Provide examples of visual queries that are easy to answer using one encoding but not the other (i.e., what is easy to see in the node-link view vs. what is easy to see in the adjacency matrix).
+
+```{r}
+ggraph(G, layout = "matrix") +
+  geom_edge_tile(mirror = TRUE) +
+  coord_fixed() +
+  geom_node_text(aes(label = Label, col = political_ideology), x = -1, nudge_y = 0.5, size = 0.5) +
+  geom_node_text(aes(label = Label, col = political_ideology), y = -1, nudge_x = -0.5, size = 0.5, angle = 90) +
+  theme_void() +
+  theme(legend.position = "none")
+
+```
+
+If given specific two nodes, it's easy to see whether these two nodes are linked or not in the adjacency matrix. For example, if we want to know whether "1000 Years for Revenge" and "Bush vs. the Beltway" are linked or not, it's better to check on adjacency matrix graph.
+
+If we want to grab a general idea of how the books are linked with each other, graph in (b) gives us a more intuitive idea of the dataset. For example, if we are looking for the links of what "1000 Years for Revenge” is linking (friends of friends), it's better to check on graph in (b).
+
+
+
+## [Topics in Pride and Prejudice] This problem uses LDA to analyze the full text of Pride and Prejudice. The object paragraph is a data.frame whose rows are paragraphs from the book. We’ve filtered very short paragraphs; e.g., from dialogue. We’re interested in how the topics appearing in the book vary from the start to the end of the book,
+
+
+```{r}
+library(tidyverse)
+library(tidytext)
+library(topicmodels)
+```
+
+#### a. Create a Document-Term Matrix containing word counts from across the same paragraphs. That is, the ith row of dtm should correspond to the ith row of paragraph. Make sure to remove all stopwords.
+
+```{r}
+paragraphs <- read_csv("https://uwmadison.box.com/shared/static/pz1lz301ufhbedzsj9iioee77r95xz4v.csv")
+
+pa_dtm <- paragraphs %>%
+  unnest_tokens(word, text) %>%
+  filter(!(word %in% stop_words$word)) %>%
+  count(paragraph, word) %>%
+  cast_dtm(paragraph, word, n)
+pa_dtm
+```
+
+
+#### b. Fit an LDA model to dtm using 6 topics. Set the seed by using the argument control = list(seed= 479) to remove any randomness in the result.
+```{r}
+fit <- LDA(pa_dtm, k = 6, control = list(seed = 479))
+fit
+```
+
+
+#### c. Visualize the top 30 words within each of the fitted topics. Specifically, create a faceted bar chart where the lengths of the bars correspond to word probabilities and the facets correspond to topics. Reorder the bars so that each topic’s top words are displayed in order of decreasing probability.
+
+```{r,fig.height=10}
+topics <- tidy(fit, matrix = "beta")
+top_terms <- topics %>%
+  group_by(topic) %>%
+  slice_max(beta, n = 30) %>%
+  mutate(term = reorder_within(term, beta, topic))
+
+ggplot(top_terms, aes(beta, term, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  scale_fill_brewer(palette = "Set2") +
+  scale_y_reordered()
+```
+
+#### d. Find the paragraph that is the purest representative of Topic 2. That is, if γik denotes the weight of topic k in paragraph i, then print out paragraph i∗ where i∗ = arg maxi γi2. Verify that the at least a few of the words with high probability for this topic appear. Only copy the first sentence into your solution.
+```{r}
+memberships <- tidy(fit, matrix = "gamma")
+topic_2 <-memberships %>%
+  filter(topic %in% '2')
+
+i <- as.character(topic_2[order(topic_2$gamma, decreasing = TRUE),][1,1])
+
+filtered_paragraph <- paragraphs %>%
+  filter(paragraph == i)
+
+res <- strsplit(filtered_paragraph$text, '[.]')[[1]][1]
+res
+```
+
+"lady" "sir" "lucas" are in this sentence, which are with high probability for this topic appear.
+
+
+
+## [Food nutrients] This problem will use PCA to provide a low-dimensional view of a 14-dimensional nutritional facts dataset. The data were originally curated by the USDA and are regularly used in visualization studies.
+
+
+```{r}
+library(tidyverse)
+library(tidymodels)
+theme_set(theme_bw())
+set.seed(1234)
+
+nutrients <- read_csv("https://uwmadison.box.com/shared/static/nmgouzobq5367aex45pnbzgkhm7sur63.csv")
+nutrients
+```
+
+#### a. Define a tidymodels recipe that normalizes all nutrient features and specifies that PCA should be performed.
+
+
+```{r}
+pca_rec <- recipe(~., data = nutrients) %>%
+  update_role(id, name, group, group_lumped, new_role = "id") %>%
+  step_normalize(all_predictors()) %>%
+  step_pca(all_predictors())
+pca_prep <- prep(pca_rec)
+```
+
+#### b. Visualize the top 6 principal components. What types of food do you expect to have low or high values for PC1 or PC2?
+
+
+```{r}
+components <- tidy(pca_prep, 2)
+components %>%
+  filter(component %in% str_c("PC", 1:6)) %>%
+  ggplot() +
+  geom_col(aes(value, terms)) +
+  facet_grid(component ~ .) +
+  theme(axis.text.y = element_text(size = 4))
+```
+
+```{r}
+components
+```
+
+Food with a lot of water and low calories will have high value for PC1. 
+Food with a lot of fat, calories, monounsat, polyunsat and saturated tend to have low value for PC1.
+
+Food with a lot of fiber, carbohydrate and sugars will have high value for PC2.
+Food with a lot of water, fat, monounsat and saturated tend to have low value for PC2.
+
+
+
+#### c. Compute the average value of PC2 within each category of the group column. Give the names of the groups sorted by this average.
+
+```{r}
+library(dplyr)
+
+mean_component <- nutrients %>%
+  select(-1, -2, -4) %>%
+  group_by(group) %>%
+  #summarise(mean_protein = mean(protein (g)))
+  summarise(across(everything(), mean),
+            .groups = 'drop')
+
+components_pc2 <- components %>%
+  filter(component == "PC2") %>%
+  select(value) %>%
+  data.matrix()
+
+ave_value <- data.matrix(mean_component[-1]) %*% components_pc2
+ave_pc2_group <- mean_component %>%
+  mutate(ave_pc2_value = ave_value) %>%
+  arrange(ave_pc2_value)
+```
+
+
+```{r}
+ave_pc2_group$group
+```
+
+#### d. Visualize the scores of each food item with respect to the first two principal components. Facet the visualization according to the group column, and sort the facets according to the results of part (c). How does the result compare with your guess from part (b)?
+
+
+```{r}
+scores <- bake(pca_prep, nutrients)
+
+scores <- within(scores, group <- factor(group, levels = ave_pc2_group$group))
+with(scores, levels(group))
+
+ggplot(scores) +
+  geom_hline(yintercept = 0, size = 0.1, col = "#5d5d5d") +
+  geom_vline(xintercept = 0, size = 0.1, col = "#5d5d5d") +
+  geom_text(aes(PC1, PC2, label = name), size = 0.1) +
+  facet_wrap(~group)
+```
+
+The result verifies my guess from (b).
+
+
+# Discussion
+
+## [Hierarchical Edge Bundling] In this problem, we will study a D3 hierarchical edge bundling implementation available at this link. The display shows how different files in a software package import from one another. Unlike a naive radial node-link layout, this layout “bundles” together edges if their source and target nodes have common ancestors in the package’s directory tree (which is why the resulting layout is called a “Hierarchical Edge Bundling”).
+
+#### a. Use console.log() to inspect the root object. Describe its structure.
+
+In the Zh object, we can see that the root object has a tree structure. Each node consists of its name and its own children array list. The name of the node is the package name it represents. The children list is where the outgoing link should go to. 
+
+
+#### b. What does this line do? .attr("d", ([i, o]) => line(i.path(o))) Provide one example of an edge in the original visualization (e.g., for example xor <--> or, though this is not a correct answer) where you believe i.path(o) contains more than two elements, and explain your reasoning. You may find it useful to console.log() the result from i.path(o).
+
+This line uses the data, convert input and output from array to the path of incoming edges and outgoing edges and draw the path.
+
+flare.util.Arrays
+
+In this example, it has 3 outgoing and 26 incoming, and it's outgoing nodes all have their own children.
+
+#### c. Imagine that you are working for a biotechnology firm that is interested in visualizing a protein network. You have data on the co-occurrence frequency for all pairs of proteins (high-co-occurrence can be interpreted as the proteins lying on a shared regulatory pathway). What, if any, additional information would you need before you could implement a hierarchical edge bundling visualization of the network? Explain your reasoning.
+
+I will need the bar of how high the co-occurence frequency should be so that they can be interpreted as the proteins lying on a shared regulatory pathway. The implementation would be linking those high-co-occurred proteins together, without distinguishing the "incoming" or "outgoing". And we can pick a random protein to start with the drawing.
+
+
+
+## [UMAP Image Collection] We will analyze the visualization available at this link, which supports exploration of artworks in the Staatliche Museen zu Berlin. The visualization shows the results of applying UMAP to the high-dimensional image features extracted using a pretrained deep learning model (if you are curious, this notebook gives details). It is implemented using a combination of D3 and a graphics library called PIXI (which we won’t be covering).
+
+#### a. This visualization supports panning and zooming. Which lines of code support this?
+
+{
+  sprites;
+  renderer.resize(width,height);
+  renderer.render(container)
+  return container.children.length; //return PIXI.js container size to confirm only new sprites/Textures are created
+}
+
+#### b. This visualization applies a “fisheye” lens in addition to more standard pan and zoom. Why do you think this was included? Do you think it is effective? Why or why not?
+
+The "fisheye" lens is helpful when we are looking for a specific painting. It's not easy to find the exact painting we are looking for, but it's much easier to find the paintings with similar features. Also, when we are enlarging the painting, the surrounding painting would also be enlarged, which makes it very effective to find the painting we want.

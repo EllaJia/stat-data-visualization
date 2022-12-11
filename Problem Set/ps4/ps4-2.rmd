@@ -1,0 +1,106 @@
+---
+title: "ps4-2"
+author: "Jiaying Jia"
+date: "2022-12-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+[Food nutrients] This problem will use PCA to provide a low-dimensional view of a 14-dimensional nutritional facts dataset. The data were originally curated by the USDA and are regularly used in visualization studies.
+
+
+```{r}
+library(tidyverse)
+library(tidymodels)
+theme_set(theme_bw())
+set.seed(1234)
+
+nutrients <- read_csv("https://uwmadison.box.com/shared/static/nmgouzobq5367aex45pnbzgkhm7sur63.csv")
+nutrients
+```
+
+a. Define a tidymodels recipe that normalizes all nutrient features and specifies that PCA should be performed.
+
+
+```{r}
+pca_rec <- recipe(~., data = nutrients) %>%
+  update_role(id, name, group, group_lumped, new_role = "id") %>%
+  step_normalize(all_predictors()) %>%
+  step_pca(all_predictors())
+pca_prep <- prep(pca_rec)
+```
+
+b. Visualize the top 6 principal components. What types of food do you expect to have low or high values for PC1 or PC2?
+
+
+```{r}
+components <- tidy(pca_prep, 2)
+components %>%
+  filter(component %in% str_c("PC", 1:6)) %>%
+  ggplot() +
+  geom_col(aes(value, terms)) +
+  facet_grid(component ~ .) +
+  theme(axis.text.y = element_text(size = 4))
+```
+
+```{r}
+components
+```
+
+Food with a lot of water and low calories will have high value for PC1. 
+Food with a lot of fat, calories, monounsat, polyunsat and saturated tend to have low value for PC1.
+
+Food with a lot of fiber, carbohydrate and sugars will have high value for PC2.
+Food with a lot of water, fat, monounsat and saturated tend to have low value for PC2.
+
+
+
+c. Compute the average value of PC2 within each category of the group column. Give the names of the groups sorted by this average.
+
+```{r}
+library(dplyr)
+
+mean_component <- nutrients %>%
+  select(-1, -2, -4) %>%
+  group_by(group) %>%
+  #summarise(mean_protein = mean(protein (g)))
+  summarise(across(everything(), mean),
+            .groups = 'drop')
+
+components_pc2 <- components %>%
+  filter(component == "PC2") %>%
+  select(value) %>%
+  data.matrix()
+
+ave_value <- data.matrix(mean_component[-1]) %*% components_pc2
+ave_pc2_group <- mean_component %>%
+  mutate(ave_pc2_value = ave_value) %>%
+  arrange(ave_pc2_value)
+```
+
+
+```{r}
+ave_pc2_group$group
+```
+
+d. Visualize the scores of each food item with respect to the first two principal components. Facet the visualization according to the group column, and sort the facets according to the results of part (c). How does the result compare with your guess from part (b)?
+
+
+```{r}
+scores <- bake(pca_prep, nutrients)
+
+scores <- within(scores, group <- factor(group, levels = ave_pc2_group$group))
+with(scores, levels(group))
+
+ggplot(scores) +
+  geom_hline(yintercept = 0, size = 0.1, col = "#5d5d5d") +
+  geom_vline(xintercept = 0, size = 0.1, col = "#5d5d5d") +
+  geom_text(aes(PC1, PC2, label = name), size = 0.1) +
+  facet_wrap(~group)
+```
+
+The result verifies my guess from (b).

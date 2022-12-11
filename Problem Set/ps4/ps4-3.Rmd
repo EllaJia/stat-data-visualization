@@ -1,0 +1,54 @@
+---
+title: "ps4"
+author: "haoyang yan"
+date: "12/5/2022"
+output: html_document
+---
+```{r}
+options(warn = -1)
+library(tidyverse)
+library(tidytext)
+library(topicmodels)
+```
+## 3
+## (a)
+```{r}
+paragraphs <- read_csv("https://uwmadison.box.com/shared/static/pz1lz301ufhbedzsj9iioee77r95xz4v.csv")
+
+pa_dtm <- paragraphs %>%
+  unnest_tokens(word, text) %>%
+  filter(!(word %in% stop_words$word)) %>%
+  count(paragraph, word) %>%
+  cast_dtm(paragraph, word, n)
+pa_dtm
+```
+## (b)
+```{r}
+fit <- LDA(pa_dtm, k = 6, control = list(seed = 479))
+fit
+```
+## (c)
+```{r,fig.height=10}
+topics <- tidy(fit, matrix = "beta")
+top_terms <- topics %>%
+  group_by(topic) %>%
+  slice_max(beta, n = 30) %>%
+  mutate(term = reorder_within(term, beta, topic))
+
+ggplot(top_terms, aes(beta, term, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  scale_fill_brewer(palette = "Set2") +
+  scale_y_reordered()
+```
+
+## (d)
+```{r}
+memberships <- tidy(fit, matrix = "gamma")
+topic2 <-memberships %>%
+  filter(topic %in% '2')
+i <- as.character(topic2[order(topic2$gamma,decreasing = TRUE),][1,1])
+text2 <- filter(paragraphs,paragraph == i)$text
+strsplit(text2,'[.]')[[1]][1]
+```
+which including words with high probability such as "sir", "william", "lady", "lucas"
